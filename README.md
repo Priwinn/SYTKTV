@@ -1,6 +1,6 @@
-# 🎶 Random Playlist Player (SYTKTV)
+# 🎶 Spotify/Youtube KTV (SYTKTV)
 
-A Python program that randomly plays content from YouTube and Spotify playlists. YouTube videos open in your browser, while Spotify tracks open in the desktop app.
+A Python program that queues content from YouTube and Spotify playlists.
 
 ## Features
 
@@ -28,7 +28,7 @@ To access Spotify playlists, you need API credentials:
 4. Fill in the app details (name, description)
 5. Copy your **Client ID** and **Client Secret**
 
-### 3. Configure Environment (Optional)
+### 3. Configure Environment
 
 Copy `.env.example` to `.env` and fill in your values:
 
@@ -43,37 +43,29 @@ SPOTIPY_CLIENT_SECRET=your_client_secret_here
 YOUTUBE_PLAYLIST_URL=https://www.youtube.com/playlist?list=PLxxxxx
 SPOTIFY_PLAYLIST_URL=https://open.spotify.com/playlist/xxxxx
 ```
+You can use collaboration invitation links. QR codes will be generated pointing to the links. Be advised that as of Jan 2026, Spotify playlist collaboration links expire while Youtube ones do not. 
 
-Or you can enter these values when prompted by the program.
+Or you can enter these values when prompted by the program (Not implemented)
 
 ## Usage
 
 Open spotify desktop app, open lyrics plus (spicetify) and F12
 
-A "Next Up" window opens automatically to show the upcoming queue (replaces next_up.txt).
+A "Next Up" window opens automatically to show the upcoming queue.
 
 Run the program in powershell in the root of the program:
 
 ```bash
 python playlist_player.py
 ```
-
-### Commands
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Play a random track from either playlist |
-| `y` | Play a random YouTube video |
-| `s` | Play a random Spotify track |
-| `q` | Quit the program |
+|
 
 ## How It Works
 
 1. **YouTube**: Uses `yt-dlp` to extract video information from the playlist without downloading
 2. **Spotify**: Uses the Spotify Web API via `spotipy` to fetch playlist tracks
 3. **Playback**: 
-   - YouTube videos open in your default web browser
-   - Spotify tracks open using the `spotify:` URI scheme (requires Spotify desktop app)
+   - Videos and songs open in your default web browser
 
 ## Requirements
 
