@@ -56,6 +56,9 @@ In order to use extended lyrics options, including romanization of Korean, Chine
 https://github.com/Priwinn/extendedLyrics
 
 ### 5. Install Karaoke Monster and uBlock origin lite (Optional)
+
+Make sure the karaoke monster extension is the first extension to the left of the extension icon (you might still need to adjust pixel values in vr methods)
+
 https://chromewebstore.google.com/detail/karaoke-monster/impekelmmfmbnjfjadmjnfclgkacaekn
 https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh
 
@@ -106,4 +109,4 @@ This app was tested with Windows 11 with display resolution of 1920x1080 and sca
 
 ## Disclaimer
 
-This app was majorly coded with the help of Copilot using Opus 4.5 and GPT5 mini, as such it is very rough around the edges.
+This app was majorly coded with the help of Copilot using Opus 4.5 and GPT5 mini, as such, it is very rough around the edges.
