@@ -254,9 +254,26 @@ class RandomPlayer:
         self._next_up_window = None
         # Whether to show who added tracks in the Next Up window
         self._show_adder_nextup = False
+        # VR calibration points (can be updated via GUI)
+        # Structure:
+        #  'base': [(x1,y1),(x2,y2)]
+        #  'spotify_last': (x,y)
+        #  'youtube_last': (x,y)
+        #  'youtube_extra': (x,y)  # extra click for YouTube
+        self._vr_points = {
+            'base': [(1694, 69), (1640, 127)],
+            'spotify_last': (1640, 590),
+            'youtube_last': (1640, 640),
+            'youtube_extra': (1643, 20),
+        }
         # Load persisted play counts from disk if present
         try:
             self._load_play_counts()
+        except Exception:
+            pass
+        # Load persisted VR calibration if present
+        try:
+            self._load_vr_points()
         except Exception:
             pass
 
@@ -298,6 +315,74 @@ class RandomPlayer:
                 os.replace(tmp, path)
             except Exception:
                 # fallback to rename
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+                try:
+                    os.replace(tmp, path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _vr_points_path(self) -> str:
+        try:
+            return os.path.join(os.path.dirname(__file__), 'vr_calibration.json')
+        except Exception:
+            return os.path.join('.', 'vr_calibration.json')
+
+    def _load_vr_points(self):
+        """Load VR calibration points from JSON file into self._vr_points."""
+        path = self._vr_points_path()
+        if not os.path.exists(path):
+            return
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return
+        base = data.get('base')
+        if isinstance(base, list) and len(base) >= 2:
+            try:
+                b0 = (int(base[0][0]), int(base[0][1]))
+                b1 = (int(base[1][0]), int(base[1][1]))
+                self._vr_points['base'] = [b0, b1]
+            except Exception:
+                pass
+        for key in ('spotify_last', 'youtube_last', 'youtube_extra'):
+            v = data.get(key)
+            if isinstance(v, (list, tuple)) and len(v) >= 2:
+                try:
+                    self._vr_points[key] = (int(v[0]), int(v[1]))
+                except Exception:
+                    pass
+
+    def _save_vr_points(self):
+        """Atomically save vr calibration to JSON on disk."""
+        try:
+            path = self._vr_points_path()
+            tmp = path + '.tmp'
+            out = {}
+            try:
+                b = self._vr_points.get('base', [])
+                if isinstance(b, (list, tuple)) and len(b) >= 2:
+                    out['base'] = [[int(b[0][0]), int(b[0][1])], [int(b[1][0]), int(b[1][1])]]
+                else:
+                    out['base'] = []
+            except Exception:
+                out['base'] = []
+            for key in ('spotify_last', 'youtube_last', 'youtube_extra'):
+                try:
+                    v = self._vr_points.get(key)
+                    if v:
+                        out[key] = [int(v[0]), int(v[1])]
+                except Exception:
+                    pass
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(out, f, indent=2, ensure_ascii=False)
+            try:
+                os.replace(tmp, path)
+            except Exception:
                 try:
                     os.remove(path)
                 except Exception:
@@ -581,12 +666,15 @@ class RandomPlayer:
             time.sleep(0.2)
 
 
-        # Last point Y varies: YouTube -> 640, Spotify -> 590 (default 590)
-        last_y = 640 if is_youtube else (590 if is_spotify else 590)
-        print(f"   [DEBUG] Performing VR reset (YouTube: {is_youtube}, Spotify: {is_spotify}), last_y={last_y}")
+        # Build the points list using calibration if available.
+        base = self._vr_points.get('base', [(1694, 69), (1640, 127)])
+        if is_youtube:
+            last = self._vr_points.get('youtube_last', (1640, 640))
+        else:
+            last = self._vr_points.get('spotify_last', (1640, 590))
 
-        # Click the specified points in order (last Y based on platform)
-        points = [(1694, 69), (1640, 127), (1640, last_y)]
+        points = list(base) + [last]
+        print(f"   [DEBUG] Performing VR reset (YouTube: {is_youtube}, Spotify: {is_spotify}), points={points}")
         for x, y in points:
             try:
                 if pyautogui.pixel(x,y) == (76,255,0):
@@ -608,11 +696,12 @@ class RandomPlayer:
         if is_youtube:
             try:
                 time.sleep(0.2)
-                pyautogui.click(1643, 20)
+                y_extra = self._vr_points.get('youtube_extra', (1643, 20))
+                pyautogui.click(y_extra[0], y_extra[1])
                 # Press F11 once more before restoring via 'f'
                 pyautogui.press('f11')
                 time.sleep(0.2)
-                pyautogui.press('f')
+                # pyautogui.press('f')
             except Exception:
                 pass
 
@@ -666,8 +755,12 @@ class RandomPlayer:
             is_spotify = False
 
 
-        # Determine last Y based on platform
-        last_y = 640 if is_youtube else (590 if is_spotify else 590)
+        # Determine last point based on platform and calibration
+        base = self._vr_points.get('base', [(1694, 69), (1640, 127)])
+        if is_youtube:
+            last = self._vr_points.get('youtube_last', (1640, 640))
+        else:
+            last = self._vr_points.get('spotify_last', (1640, 590))
 
         # Deactivate fullscreen if needed
         if self.is_window_fullscreen(target_win):
@@ -679,7 +772,7 @@ class RandomPlayer:
             time.sleep(0.2)
 
         # Points to click (first is always clicked)
-        points = [(1694, 69), (1640, 127), (1640, last_y)]
+        points = list(base) + [last]
 
         for idx, (x, y) in enumerate(points):
             try:
@@ -709,7 +802,8 @@ class RandomPlayer:
         if is_youtube:
             try:
                 time.sleep(0.2)
-                pyautogui.click(1643, 20)
+                y_extra = self._vr_points.get('youtube_extra', (1643, 20))
+                pyautogui.click(y_extra[0], y_extra[1])
                 # Press F11 then restore via 'f'
                 pyautogui.press('f11')
                 time.sleep(0.2)
@@ -766,8 +860,12 @@ class RandomPlayer:
         except Exception:
             is_spotify = False
 
-        # Determine last Y based on platform
-        last_y = 640 if is_youtube else (590 if is_spotify else 590)
+        # Determine last point based on platform and calibration
+        base = self._vr_points.get('base', [(1694, 69), (1640, 127)])
+        if is_youtube:
+            last = self._vr_points.get('youtube_last', (1640, 640))
+        else:
+            last = self._vr_points.get('spotify_last', (1640, 590))
 
         # Deactivate fullscreen if needed
         if self.is_window_fullscreen(target_win):
@@ -778,8 +876,8 @@ class RandomPlayer:
             pyautogui.press('f')
             time.sleep(0.2)
 
-        first = (1694, 69)
-        last = (1640, last_y)
+        first = tuple(base[0]) if base and len(base) > 0 else (1694, 69)
+        # last is already set above
 
         # Always click first point
         try:
@@ -790,7 +888,7 @@ class RandomPlayer:
                 pyautogui.click()
             except Exception:
                 pass
-        time.sleep(0.25)
+        time.sleep(0.3)
 
         # Check last pixel; click it only if it's green (76,255,0)
         try:
@@ -808,7 +906,7 @@ class RandomPlayer:
                         pyautogui.click()
                     except Exception:
                         pass
-                time.sleep(0.25)
+                time.sleep(0.3)
         except Exception:
             pass
 
@@ -816,7 +914,8 @@ class RandomPlayer:
         if is_youtube:
             try:
                 time.sleep(0.2)
-                pyautogui.click(1643, 20)
+                y_extra = self._vr_points.get('youtube_extra', (1643, 20))
+                pyautogui.click(y_extra[0], y_extra[1])
                 pyautogui.press('f11')
                 time.sleep(0.2)
                 pyautogui.press('f')
@@ -2054,6 +2153,129 @@ class Menu:
                     except Exception:
                         pass
 
+                def _calibrate_vr():
+                    try:
+                        # Dialog to guide the user through capturing points by pressing Enter
+                        dlg = tk.Toplevel(self.root)
+                        dlg.title('Calibrate VR')
+                        dlg.geometry('560x220')
+                        dlg.transient(self.root)
+
+                        # We always capture all calibration points in sequence:
+                        # base1, base2, spotify_last, youtube_last, youtube_extra
+                        status = tk.Label(dlg, text='Press Start to begin. Hover over each point and press Enter to capture. Before starting calibration open a youtube video and fullscreen the browser window via f11 and then fullscreen the video via F. You can go back to maximized window after doing this. Do not ask why,f you don\'t wanna know', wraplength=520, justify='left')
+                        status.pack(fill='x', padx=8, pady=(8,4))
+
+                        pos_lbl = tk.Label(dlg, text='Current mouse: (x, y)')
+                        pos_lbl.pack(anchor='w', padx=8)
+
+                        btn_frame_cal = tk.Frame(dlg)
+                        btn_frame_cal.pack(fill='x', pady=8, padx=8)
+
+                        capturing = {'active': False}
+                        steps = []
+                        captures = {}
+
+                        def update_pos():
+                            try:
+                                if not dlg.winfo_exists():
+                                    return
+                                p = pyautogui.position()
+                                pos_lbl.config(text=f'Current mouse: ({p[0]}, {p[1]})')
+                                if capturing.get('active'):
+                                    dlg.after(100, update_pos)
+                                else:
+                                    # keep updating briefly so user can move
+                                    dlg.after(300, update_pos)
+                            except Exception:
+                                pass
+
+                        def start_capture():
+                            try:
+                                # Always capture full sequence
+                                seq = ['base1', 'base2', 'spotify_last', 'youtube_last', 'youtube_extra']
+                                steps.clear()
+                                for s in seq:
+                                    steps.append(s)
+
+                                captures.clear()
+                                capturing['active'] = True
+
+                                status.config(text=f"Step 1/{len(steps)}: Hover on Karaoke Monster Extension. Make sure to click this window last and press Enter to capture")
+                                dlg.focus_force()
+                                dlg.bind('<Return>', on_enter)
+                                update_pos()
+                            except Exception:
+                                pass
+
+                        def on_enter(event=None):
+                            descriptions = {'base1': 'Hover on Karaoke Monster Extension',
+                            'base2': 'Click on Karaoke Monster Extension and Hover on the left half of Master Switch (the one at the top). Make sure the position you hovered is green when the switch is on.',
+                            'spotify_last': 'Hover on the VR switch when spotify is on the tab. Sometimes when having multiple youtube and or spotify tabs open the extension will shoe a button "Use current", click it before performing this step. ',
+                            'youtube_last': 'Hover on the VR switch when youtube is on the tab. Sometimes when having multiple youtube and or spotify tabs open the extension will shoe a button "Use current", click it before performing this step. ',
+                            'youtube_extra': 'Hover on the top of the browser window, somewhere where there is no tab (this is to focus the browser window without changing the tab)'
+                            }
+                            try:
+                                if not capturing.get('active'):
+                                    return
+                                p = pyautogui.position()
+                                idx = len(captures)
+                                step_name = steps[idx]
+                                captures[step_name] = (p[0], p[1])
+                                # advance
+                                if len(captures) >= len(steps):
+                                    # finished
+                                    capturing['active'] = False
+                                    dlg.unbind('<Return>')
+                                    # Apply captured points to player
+                                    try:
+                                        # base
+                                        if 'base1' in captures and 'base2' in captures:
+                                            self.player._vr_points['base'] = [captures['base1'], captures['base2']]
+                                        if 'spotify_last' in captures:
+                                            self.player._vr_points['spotify_last'] = captures['spotify_last']
+                                        if 'youtube_last' in captures:
+                                            self.player._vr_points['youtube_last'] = captures['youtube_last']
+                                        if 'youtube_extra' in captures:
+                                            self.player._vr_points['youtube_extra'] = captures['youtube_extra']
+                                        try:
+                                            self.player._save_vr_points()
+                                        except Exception:
+                                            pass
+                                        print(f"VR calibration saved: {self.player._vr_points}")
+                                    except Exception:
+                                        pass
+                                    status.config(text='Calibration complete. You can close this window.')
+                                    return
+                                else:
+                                    # next step
+                                    next_idx = len(captures)
+                                    status.config(text=f'Step {next_idx+1}/{len(steps)}: {descriptions.get(steps[next_idx])} Make sure to click this window last and press Enter to capture')
+                            except Exception:
+                                pass
+
+                        def cancel():
+                            try:
+                                capturing['active'] = False
+                                try:
+                                    dlg.unbind('<Return>')
+                                except Exception:
+                                    pass
+                                dlg.destroy()
+                            except Exception:
+                                pass
+
+                        b_start = tk.Button(btn_frame_cal, text='Start', command=start_capture)
+                        b_cancel = tk.Button(btn_frame_cal, text='Cancel', command=cancel)
+                        b_start.pack(side='left', padx=8)
+                        b_cancel.pack(side='left', padx=8)
+
+                        # kick off pos updates
+                        dlg.after(100, update_pos)
+                        dlg.focus_force()
+                    except Exception:
+                        pass
+
                 try:
                     if btn_font:
                         b_shuffle = tk.Button(btn_frame, text='Shuffle', command=_shuffle_queue, font=btn_font, padx=16, pady=8)
@@ -2063,6 +2285,7 @@ class Menu:
                         b_reset = tk.Button(btn_frame2, text='Reset VR', command=_reset_vr, font=btn_font, padx=16, pady=8)
                         b_vron = tk.Button(btn_frame2, text='VR ON', command=_vr_on, font=btn_font, padx=16, pady=8)
                         b_vroff = tk.Button(btn_frame2, text='VR OFF', command=_vroff, font=btn_font, padx=16, pady=8)
+                        b_calibrate = tk.Button(btn_frame2, text='Calibrate VR', command=_calibrate_vr, font=btn_font, padx=12, pady=6)
                         b_adder = tk.Button(btn_frame, text='Adder', command=_toggle_adder, font=btn_font, padx=12, pady=6)
                         b_qr = tk.Button(btn_frame, text='QR', command=_toggle_qr_display, font=btn_font, padx=10, pady=4)
                         b_quit = tk.Button(btn_frame, text='Quit', command=_quit_app, font=btn_font, padx=12, pady=6)
@@ -2074,6 +2297,7 @@ class Menu:
                         b_reset = tk.Button(btn_frame2, text='Reset VR', command=_reset_vr, padx=12, pady=6)
                         b_vron = tk.Button(btn_frame2, text='VR ON', command=_vr_on, padx=12, pady=6)
                         b_vroff = tk.Button(btn_frame2, text='VR OFF', command=_vroff, padx=12, pady=6)
+                        b_calibrate = tk.Button(btn_frame2, text='Calibrate VR', command=_calibrate_vr, padx=10, pady=4)
                         b_adder = tk.Button(btn_frame, text='Adder', command=_toggle_adder, padx=10, pady=4)
                         b_qr = tk.Button(btn_frame, text='QR', command=_toggle_qr_display, padx=10, pady=4)
                         b_quit = tk.Button(btn_frame, text='Quit', command=_quit_app, padx=10, pady=4)
@@ -2092,12 +2316,14 @@ class Menu:
                     b_reset.pack(in_=btn_frame2, side='left', padx=8, pady=4)
                     b_vron.pack(in_=btn_frame2, side='left', padx=8, pady=4)
                     b_vroff.pack(in_=btn_frame2, side='left', padx=8, pady=4)
+                    b_calibrate.pack(in_=btn_frame2, side='left', padx=8, pady=4)
                     # Pack adder and quit on the right side for accessibility
                     b_adder.pack(side='right', padx=8, pady=4)
                     b_qr.pack(side='right', padx=8, pady=4)
                     b_quit.pack(side='right', padx=8, pady=4)
                 except Exception:
                     pass
+
             except Exception:
                 pass
 
