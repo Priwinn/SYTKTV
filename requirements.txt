@@ -7,4 +7,14 @@ PyGetWindow==0.0.9
 spotipy==2.25.2
 yt-dlp==2025.12.8
 Pillow==12.0.0
-
+sounddevice==0.4.6
+numpy
+SoundFile==0.12.1; sys_platform != 'darwin'
+PySoundFile==0.9.0.post1; sys_platform == 'darwin'
+cffi==2.0.0
+dora-search
+einops
+julius>=0.2.3
+lameenc>=1.2
+openunmix
+tqdm

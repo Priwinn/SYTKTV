@@ -10,6 +10,7 @@ A small Python utility that queues content from YouTube and Spotify playlists an
 - 🌐 Opens YouTube videos and Spotify songs in your default browser and (optionally) focuses the Spotify desktop app to show lyrics
 - ✨ Integrates with Karaoke Monster (browser extension) for voice removal and lyrics display when available
 - 💾 Persists a play-count file so tracks with the lowest counts are prioritized (delete the file to reset)
+- Live voice removal using demucs
 
 
 ## Setup
@@ -20,6 +21,18 @@ Install runtime dependencies from `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Install torch with CUDA (It will be too laggy without CUDA)
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu126
+```
+
+Install demucs with no deps (can be problematic with 3.13+)
+
+```bash
+pip install --no-deps demucs
 ```
 
 Notes:
@@ -69,12 +82,17 @@ Make sure the karaoke monster extension is the first extension to the left of th
 https://chromewebstore.google.com/detail/karaoke-monster/impekelmmfmbnjfjadmjnfclgkacaekn
 https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh
 
+### 6. Install VB-Cable (Optional)
+
+If you want to use the demucs voice removal you will need to install VB-cable
+https://vb-audio.com/Cable/
 
 ## Usage
 
 - Open the Spotify desktop app if you plan to use Spotify playback/lyrics.
 - (Optional) If you use spicetify/lyrics plugins, open them before running the program.
 - For best results when using pixel-based automation (voice removal helpers) set display resolution to 1920×1080 and Windows scale to 125% — otherwise pixel coordinates used by the helpers may need manual adjustment.
+
 
 Run the program in powershell in the root of the program:
 
@@ -83,6 +101,8 @@ python playlist_player.py
 ```
 
 A "Next Up" window opens automatically to show the upcoming queue and controls.
+
+- NEW: spotify desktop mode, we needed to play on browser only because we used karaokemonster for voice removal. With Demucs we can use the desktop app. Click on Voice Mixer to launch demucs. Don't forget to set spotify output to the VB cable input 
 
 ## How It Works
 
